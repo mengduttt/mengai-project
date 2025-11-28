@@ -1,5 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // TAMBAHAN PENTING BUAT VERCEL:
+  binaryTargets = ["native", "rhel-openssl-1.0.x"]
 }
 
 datasource db {
@@ -26,7 +28,7 @@ model User {
 model Conversation {
   id        Int       @id @default(autoincrement())
   title     String
-  summary   String?   // <--- Ini buat Long-Term Memory
+  summary   String?   // Long-Term Memory
   userId    Int
   user      User      @relation(fields: [userId], references: [id])
   messages  Message[]

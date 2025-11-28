@@ -6,25 +6,22 @@ require('dotenv').config();
 
 const app = express();
 
-// === FIX CORS (BUKA GERBANG) ===
+// === FIX CORS: IZINKAN SEMUA PINTU MASUK ===
 app.use(cors({
-    origin: '*', // Boleh diakses dari mana aja (termasuk frontend lu yang beda-beda linknya)
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Izinkan semua aksi
-    allowedHeaders: ['Content-Type', 'Authorization'], // Izinkan header penting
-    credentials: true
+    origin: '*', // Tanda bintang artinya: "Siapa aja boleh masuk"
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true // Izinkan kirim token/cookie
 }));
 
-// Handle Preflight Request (Penting buat Vercel biar ga merah)
+// Handle Preflight Request (Penting buat Vercel)
 app.options('*', cors());
 
 app.use(express.json());
 
-// Serve Static Folder (Opsional)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// Route Cek Server
+// Route Cek Server (Buat ngetes doang)
 app.get('/', (req, res) => {
-    res.send("MengAi Server is Running! 🚀 CORS Aman.");
+    res.send("MengAi Backend is Running! 🚀 CORS All Allowed.");
 });
 
 app.use('/api', apiRoutes);

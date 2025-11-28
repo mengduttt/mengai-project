@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   Int       @id @default(autoincrement())
+  username             String    @unique
+  email                String    @unique @default("admin@mengai.id")
+  password             String
+  role                 String    @default("USER") // USER atau ADMIN
+  tokens               Int       @default(300)
+  lastReset            DateTime  @default(now())
+  
+  // Fitur Forgot Password
+  resetPasswordToken   String?   
+  resetPasswordExpires DateTime? 
+
+  conversations        Conversation[]
+}
+
+model Conversation {
+  id        Int       @id @default(autoincrement())
+  title     String
+  summary   String?   // <--- Ini buat Long-Term Memory
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id])
+  messages  Message[]
+  createdAt DateTime  @default(now())
+}
+
+model Message {
+  id             Int          @id @default(autoincrement())
+  content        String
+  role           String       // 'user' or 'model'
+  type           String       @default("text") // text, image, document, audio, image_url
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  createdAt      DateTime     @default(now())
+}

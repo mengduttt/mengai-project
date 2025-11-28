@@ -6,20 +6,25 @@ require('dotenv').config();
 
 const app = express();
 
-// === FIX CORS: IZINKAN SEMUA PINTU MASUK ===
+const allowedOrigin = 'https://mengai-project-2xa4.vercel.app';
+
 app.use(cors({
-    origin: '*', // Tanda bintang artinya: "Siapa aja boleh masuk"
+    origin: allowedOrigin,                // ⬅️ GANTI dari '*' jadi domain frontend
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true // Izinkan kirim token/cookie
+    credentials: true                     // ⬅️ boleh pakai ini, tapi origin nggak boleh '*'
 }));
 
-// Handle Preflight Request (Penting buat Vercel)
-app.options('*', cors());
+// Preflight
+app.options('*', cors({
+    origin: allowedOrigin,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
 
 app.use(express.json());
 
-// Route Cek Server (Buat ngetes doang)
 app.get('/', (req, res) => {
     res.send("MengAi Backend is Running! 🚀 CORS All Allowed.");
 });

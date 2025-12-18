@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const { getGeminiResponse, summarizeChat } = require('../utils/gemini');
 const fs = require('fs');
 const pdfParse = require('pdf-parse'); 
+const mammoth = require('mammoth');
 
 const prisma = new PrismaClient();
 
@@ -84,6 +85,17 @@ exports.sendMessage = async (req, res) => {
                 filePart = {
                     isPdf: true,
                     text: pdfData.text
+                };
+                fs.unlinkSync(file.path);
+            }
+            // DOCX support (.doc/.docx)
+            else if (file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                     file.mimetype === 'application/msword') {
+                const dataBuffer = fs.readFileSync(file.path);
+                const docxData = await mammoth.extractRawText({ buffer: dataBuffer });
+                filePart = {
+                    isDocx: true,
+                    text: docxData.value
                 };
                 fs.unlinkSync(file.path);
             }

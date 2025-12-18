@@ -5,10 +5,10 @@
   "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/index.js", 
+    "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "postinstall": "prisma generate",
-    "build": "prisma generate" 
+    "build": "prisma generate"
   },
   "keywords": [],
   "author": "",
@@ -23,6 +23,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.11.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.14",
     "pdf-parse": "^1.1.1",

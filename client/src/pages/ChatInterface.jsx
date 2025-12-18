@@ -109,7 +109,7 @@ const ChatInput = ({ onSend, loading, isMobile = false }) => {
                         loading ? 'opacity-50 cursor-not-allowed' : 'hover:text-blue-400 cursor-pointer hover:bg-white/10'
                     }`}>
                         <Paperclip size={20} />
-                        <input type="file" className="hidden" onChange={(e) => setSelectedFile(e.target.files[0])} accept="image/*,.pdf,.txt" disabled={loading} />
+                        <input type="file" className="hidden" onChange={(e) => setSelectedFile(e.target.files[0])} accept="image/*,.pdf,.txt,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={loading} />
                     </label>
                     <textarea
                         value={input}

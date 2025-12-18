@@ -72,3 +72,51 @@ exports.deleteUser = async (req, res) => {
         res.status(500).json({ error: "Gagal hapus user" });
     }
 };
+
+// 5. PROMOTE USER TO ADMIN
+exports.promoteUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const user = await prisma.user.update({
+            where: { id: parseInt(id) },
+            data: { role: 'ADMIN' }
+        });
+        
+        res.json({ 
+            success: true, 
+            message: `${user.username} dipromosikan ke ADMIN!`,
+            user 
+        });
+    } catch (error) {
+        console.error('Promote error:', error);
+        res.status(500).json({ error: 'Gagal promote user' });
+    }
+};
+
+// 6. DEMOTE ADMIN TO USER
+exports.demoteUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const requesterId = req.user.id;
+        
+        // Prevent self-demotion
+        if (parseInt(id) === requesterId) {
+            return res.status(400).json({ error: 'Ga bisa demote diri sendiri!' });
+        }
+        
+        const user = await prisma.user.update({
+            where: { id: parseInt(id) },
+            data: { role: 'USER' }
+        });
+        
+        res.json({ 
+            success: true, 
+            message: `${user.username} di-demote ke USER`,
+            user 
+        });
+    } catch (error) {
+        console.error('Demote error:', error);
+        res.status(500).json({ error: 'Gagal demote user' });
+    }
+};

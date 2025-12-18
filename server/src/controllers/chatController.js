@@ -5,14 +5,13 @@ const pdfParse = require('pdf-parse');
 
 const prisma = new PrismaClient();
 
-// === 1. KIRIM PESAN (SEND MESSAGE) ===
+// === SEND MESSAGE ===
 exports.sendMessage = async (req, res) => {
     try {
         const { prompt, conversationId, mode } = req.body;
         const userId = req.user.id;
         const file = req.file; 
 
-        // 1. Validasi Token
         const user = await prisma.user.findUnique({ where: { id: userId } });
         
         if (user.role !== 'ADMIN' && user.tokens <= 0) {
@@ -26,153 +25,144 @@ exports.sendMessage = async (req, res) => {
             });
         }
 
-        // 2. Handle Conversation & Memory
-        let convId = conversationId;
-        let currentSummary = "";
-
-        if (!convId || convId === 'null') {
-            const newConv = await prisma.conversation.create({
-                data: {
-                    title: prompt ? prompt.substring(0, 30) + "..." : "Media Chat",
-                    userId: userId
+        let convId = conversationId ? parseInt(conversationId) : null;
+        let existingConversation = null;
+        
+        if (convId) {
+            existingConversation = await prisma.conversation.findUnique({
+                where: { id: convId },
+                include: {
+                    messages: {
+                        where: {
+                            role: { in: ['user', 'model'] }  // Only valid roles
+                        },
+                        orderBy: { createdAt: 'asc' }
+                    }
                 }
+            });
+        } else {
+            const newConv = await prisma.conversation.create({
+                data: { userId, title: prompt.substring(0, 50) }
             });
             convId = newConv.id;
-        } else {
-            // Ambil summary lama
-            const existingConv = await prisma.conversation.findUnique({ where: { id: parseInt(convId) } });
-            if (existingConv) currentSummary = existingConv.summary;
+            existingConversation = { messages: [], summary: null };
         }
 
-        // 3. Tentukan Tipe Pesan
-        let messageType = 'text';
-        if (file) {
-            if (file.mimetype.startsWith('image')) messageType = 'image';
-            else if (file.mimetype.startsWith('audio')) messageType = 'audio';
-            else messageType = 'document'; 
+        let memory = existingConversation.summary;
+        if (existingConversation.messages.length >= 10 && !existingConversation.summary) {
+            const messagesToSummarize = existingConversation.messages
+                .map(m => `${m.sender === 'user' ? 'User' : 'AI'}: ${m.text}`)
+                .join('\n');
+            const newSummary = await summarizeChat(memory, messagesToSummarize);
+            await prisma.conversation.update({
+                where: { id: convId },
+                data: { summary: newSummary }
+            });
+            memory = newSummary;
         }
 
-        // Simpan User Message
-        await prisma.message.create({
-            data: {
-                content: prompt + (file ? ` [File: ${file.originalname}]` : ""),
-                role: 'user',
-                conversationId: parseInt(convId),
-                type: messageType
-            }
-        });
-
-        // 4. Siapkan History
-        const prevMessages = await prisma.message.findMany({
-            where: { conversationId: parseInt(convId) },
-            orderBy: { createdAt: 'asc' },
-            take: 20
-        });
-
-        const history = prevMessages.map(msg => ({
-            role: msg.role === 'user' ? 'user' : 'model',
-            parts: [{ text: msg.content }]
-        }));
-
-        // 5. PROSES FILE
         let filePart = null;
         if (file) {
-            const buffer = fs.readFileSync(file.path);
+            const fileMimeType = file.mimetype;
 
-            if (file.mimetype === 'application/pdf') {
-                try {
-                    const pdfData = await pdfParse(buffer);
-                    filePart = { isImage: false, text: pdfData.text };
-                } catch (err) {
-                    console.error("Gagal baca PDF:", err);
-                }
-            } else if (file.mimetype === 'text/plain') {
-                filePart = { isImage: false, text: buffer.toString('utf-8') };
-            } else if (file.mimetype.startsWith('image')) {
+            if (fileMimeType.startsWith('image/')) {
+                const imageData = fs.readFileSync(file.path, { encoding: 'base64' });
                 filePart = {
                     isImage: true,
-                    data: { inlineData: { data: buffer.toString("base64"), mimeType: file.mimetype } }
+                    data: {
+                        inlineData: {
+                            data: imageData,
+                            mimeType: fileMimeType
+                        }
+                    }
                 };
-            } else if (file.mimetype.startsWith('audio')) {
+                fs.unlinkSync(file.path);
+            }
+            else if (file.mimetype === 'application/pdf') {
+                const dataBuffer = fs.readFileSync(file.path);
+                const pdfData = await pdfParse(dataBuffer);
+                filePart = {
+                    isPdf: true,
+                    text: pdfData.text
+                };
+                fs.unlinkSync(file.path);
+            }
+            else if (fileMimeType.startsWith('audio/')) {
+                const audioData = fs.readFileSync(file.path, { encoding: 'base64' });
                 filePart = {
                     isAudio: true,
-                    data: { inlineData: { data: buffer.toString("base64"), mimeType: file.mimetype } }
+                    data: {
+                        inlineData: {
+                            data: audioData,
+                            mimeType: fileMimeType
+                        }
+                    }
                 };
+                fs.unlinkSync(file.path);
             }
         }
 
-        // 6. Panggil Gemini (Kirim Prompt + FilePart + MEMORY)
-        let aiResponseText = await getGeminiResponse(prompt, history, mode, filePart, currentSummary);
-        
-        // === LOGIC GENERATE IMAGE ===
-        let aiMessageType = 'text';
-        let finalContent = aiResponseText;
+        // Map and filter history - remove any messages with invalid roles
+        const history = existingConversation.messages
+            .filter(msg => msg.role && (msg.role === 'user' || msg.role === 'model'))
+            .map(msg => ({
+                role: msg.role,
+                parts: [{ text: msg.content }]
+            }));
 
-        if (aiResponseText.startsWith('IMAGE_GEN:')) {
-            const imagePrompt = aiResponseText.replace('IMAGE_GEN:', '').trim();
-            const encodedPrompt = encodeURIComponent(imagePrompt);
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?nologo=true`;
-            
-            aiMessageType = 'image_url';
-            finalContent = imageUrl;
-        }
+        const aiResponse = await getGeminiResponse(prompt, history, mode, filePart, memory);
 
-        // 7. Simpan AI Message
         await prisma.message.create({
-            data: {
-                content: finalContent,
-                role: 'model',
-                conversationId: parseInt(convId),
-                type: aiMessageType
-            }
+            data: { conversationId: convId, role: 'user', content: prompt }
         });
 
-        // === 8. UPDATE MEMORI (AUTO SUMMARIZE) ===
-        const totalMessages = await prisma.message.count({ where: { conversationId: parseInt(convId) } });
-        
-        if (totalMessages > 5 && totalMessages % 5 === 0) {
-            const recentChats = prevMessages.slice(-10).map(m => `${m.role}: ${m.content}`).join("\n");
-            summarizeChat(currentSummary, recentChats).then(newSummary => {
-                prisma.conversation.update({
-                    where: { id: parseInt(convId) },
-                    data: { summary: newSummary }
-                }).catch(err => console.error("Gagal update summary DB", err));
-            });
-        }
-
-        if(file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
-
-        res.json({ 
-            response: finalContent, 
-            messageType: aiMessageType, 
-            conversationId: convId, 
-            tokensLeft: user.role === 'ADMIN' ? 'UNLIMITED' : user.tokens - 1 
+        await prisma.message.create({
+            data: { conversationId: convId, role: 'model', content: aiResponse }
         });
+
+        res.json({ aiResponse, conversationId: convId });
 
     } catch (error) {
-        console.error(error);
-        if(req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        res.status(500).json({ error: "MengAi lagi pusing (Server Error)" });
+        console.error('SendMessage Error:', error);
+        res.status(500).json({ error: error.message });
     }
 };
 
-// ... (Sisanya export function lain sama) ...
+// === GET HISTORY ===
 exports.getHistory = async (req, res) => {
     try {
         const userId = req.user.id;
-        const convs = await prisma.conversation.findMany({ where: { userId }, include: { messages: true }, orderBy: { createdAt: 'desc' } });
-        res.json(convs);
-    } catch (error) { res.status(500).json({ error: "Gagal ambil history" }); }
+        const conversations = await prisma.conversation.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                messages: {
+                    orderBy: { createdAt: 'asc' }
+                }
+            }
+        });
+        res.json({ conversations });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Gagal load history" });
+    }
 };
 
+// === DELETE CONVERSATION ===
 exports.deleteConversation = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.id;
-        const conv = await prisma.conversation.findFirst({ where: { id: parseInt(id), userId: userId } });
+        const conv = await prisma.conversation.findFirst({ 
+            where: { id: parseInt(id), userId: userId } 
+        });
         if (!conv) return res.status(404).json({ error: "Chat ga ketemu!" });
+        
         await prisma.message.deleteMany({ where: { conversationId: parseInt(id) } });
         await prisma.conversation.delete({ where: { id: parseInt(id) } });
         res.json({ message: "Chat berhasil dihapus!" });
-    } catch (error) { res.status(500).json({ error: "Gagal menghapus chat" }); }
+    } catch (error) {
+        console.error('Delete conversation error:', error);
+        res.status(500).json({ error: "Gagal menghapus chat" });
+    }
 };

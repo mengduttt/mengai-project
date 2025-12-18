@@ -21,7 +21,7 @@ router.put('/me', authMiddleware, authController.updateProfile);
 router.post('/chat',
   authMiddleware,
   tokenManager,
-  upload.single('image'),
+  upload.single('file'),
   chatController.sendMessage
 );
 
@@ -33,6 +33,9 @@ router.get('/admin/stats', authMiddleware, adminCheck, adminController.getDashbo
 router.get('/admin/users', authMiddleware, adminCheck, adminController.getAllUsers);
 router.put('/admin/users/:id/token', authMiddleware, adminCheck, adminController.refillToken);
 router.delete('/admin/users/:id', authMiddleware, adminCheck, adminController.deleteUser);
+router.post('/admin/users/:id/promote', authMiddleware, adminCheck, adminController.promoteUser);
+router.post('/admin/users/:id/demote', authMiddleware, adminCheck, adminController.demoteUser);
+
 
 // ===== PASSWORD RESET =====
 router.post('/forgot-password', authController.forgotPassword);

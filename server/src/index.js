@@ -6,11 +6,24 @@ require('dotenv').config();
 
 const app = express();
 
-// 🔹 Ambil origin dari ENV, jadi bisa beda antara local & production
-const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
+// 🔹 Allow multiple origins (local + production)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://mengai-project-2xa4.vercel.app',
+  process.env.CLIENT_URL
+].filter(Boolean); // Remove undefined
 
 app.use(cors({
-  origin: allowedOrigin,
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -18,7 +31,7 @@ app.use(cors({
 
 // Preflight
 app.options('*', cors({
-  origin: allowedOrigin,
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,

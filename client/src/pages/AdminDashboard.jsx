@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAdminStats, getAllUsers, refillToken, deleteUser } from '../services/api';
+import { getDashboardStats, getAllUsers, refillToken, deleteUser, promoteUser, demoteUser } from '../services/api';
 import toast from 'react-hot-toast';
-import { Users, MessageSquare, Activity, Trash2, Zap, LogOut, Shield } from 'lucide-react';
+import { Users, MessageSquare, Activity, Trash2, Zap, LogOut, Shield, Crown, UserMinus } from 'lucide-react';
 
 const AdminDashboard = () => {
     const [stats, setStats] = useState({ totalUsers: 0, totalChats: 0, totalMessages: 0 });
@@ -16,7 +16,7 @@ const AdminDashboard = () => {
 
     const fetchData = async () => {
         try {
-            const statsRes = await getAdminStats();
+            const statsRes = await getDashboardStats();
             const usersRes = await getAllUsers();
             setStats(statsRes.data);
             setUsers(usersRes.data);
@@ -51,6 +51,30 @@ const AdminDashboard = () => {
             fetchData();
         } catch (error) {
             toast.error(error.response?.data?.error || "Gagal hapus user");
+        }
+    };
+
+    const handlePromote = async (id, username) => {
+        if (!window.confirm(`Promote ${username} to ADMIN?\n\nAdmin will have unlimited access!`)) return;
+        
+        try {
+            await promoteUser(id);
+            toast.success(`${username} is now ADMIN! 👑`);
+            fetchData();
+        } catch (error) {
+            toast.error(error.response?.data?.error || "Failed to promote");
+        }
+    };
+
+    const handleDemote = async (id, username) => {
+        if (!window.confirm(`Demote ${username} to regular USER?`)) return;
+        
+        try {
+            await demoteUser(id);
+            toast.success(`${username} demoted to USER`);
+            fetchData();
+        } catch (error) {
+            toast.error(error.response?.data?.error || "Failed to demote");
         }
     };
 
@@ -136,18 +160,42 @@ const AdminDashboard = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className={`font-mono ${user.tokens < 50 ? 'text-red-400' : 'text-green-400'}`}>
-                                            {user.tokens}
+                                        <span className={`font-mono ${user.role === 'ADMIN' ? 'text-yellow-400 text-lg' : user.tokens < 50 ? 'text-red-400' : 'text-green-400'}`}>
+                                            {user.role === 'ADMIN' ? '∞' : user.tokens}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 flex justify-end gap-2">
-                                        <button 
-                                            onClick={() => handleRefill(user.id)}
-                                            className="p-2 bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600 hover:text-white rounded-lg transition"
-                                            title="Isi Ulang Token"
-                                        >
-                                            <Zap size={16} />
-                                        </button>
+                                        {/* Promote/Demote Button */}
+                                        {user.role === 'ADMIN' ? (
+                                            <button 
+                                                onClick={() => handleDemote(user.id, user.username)}
+                                                className="p-2 bg-orange-600/20 text-orange-400 hover:bg-orange-600 hover:text-white rounded-lg transition"
+                                                title="Demote to USER"
+                                            >
+                                                <UserMinus size={16} />
+                                            </button>
+                                        ) : (
+                                            <button 
+                                                onClick={() => handlePromote(user.id, user.username)}
+                                                className="p-2 bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600 hover:text-white rounded-lg transition"
+                                                title="Promote to ADMIN"
+                                            >
+                                                <Crown size={16} />
+                                            </button>
+                                        )}
+
+                                        {/* Refill Token Button */}
+                                        {user.role !== 'ADMIN' && (
+                                            <button 
+                                                onClick={() => handleRefill(user.id)}
+                                                className="p-2 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-lg transition"
+                                                title="Refill Tokens"
+                                            >
+                                                <Zap size={16} />
+                                            </button>
+                                        )}
+
+                                        {/* Delete Button */}
                                         {user.role !== 'ADMIN' && (
                                             <button 
                                                 onClick={() => handleDelete(user.id, user.username)}

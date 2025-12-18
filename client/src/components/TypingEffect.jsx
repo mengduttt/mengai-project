@@ -5,15 +5,16 @@ const TypingEffect = ({ text, components, onComplete }) => {
   const [displayedText, setDisplayedText] = useState('');
 
   useEffect(() => {
+    // Safety check - if text is undefined/null, do nothing
+    if (!text) return;
+    
     let index = 0;
     setDisplayedText(''); // Reset saat text berubah
 
-    // === LOGIC SMART SPEED (BIAR GAK LAG) ===
-    // Kalau teksnya panjang banget (> 200 karakter), kita "ngebut" ngetiknya
-    // dengan nampilin 5 karakter sekaligus tiap interval.
-    // Kalau pendek, pelan-pelan (1-2 karakter) biar estetik.
-    const chunkSize = text.length > 200 ? 10 : 2; 
-    const speed = text.length > 200 ? 10 : 15; // Interval dalam milidetik
+    // === LOGIC SMART SPEED (OPTIMIZED FOR FASTER DISPLAY) ===
+    // Increased chunk size and reduced delay for faster typing
+    const chunkSize = text.length > 200 ? 20 : 5;  // 2x faster chunks
+    const speed = text.length > 200 ? 5 : 8;  // Faster intervals (was 10/15ms)
 
     const interval = setInterval(() => {
       if (index >= text.length) {

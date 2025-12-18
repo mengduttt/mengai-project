@@ -1,54 +1,54 @@
-import axios from "axios";
+import axios from 'axios';
 
-// Ambil dari env kalau ada (di Vercel/production),
-// kalau nggak ada → fallback ke localhost (buat development).
-// Pastikan VITE_API_URL *tanpa* slash di belakang, contoh:
-// VITE_API_URL=https://namabackend.up.railway.app/api
-const RAW_API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+// Use Vite env variable with fallback to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Buang slash di belakang kalau ada (biar nggak jadi //login)
-const API_URL = RAW_API_URL.replace(/\/+$/, "");
+// Get token dari localStorage
+const getToken = () => localStorage.getItem('token');
 
-const api = axios.create({
-  baseURL: API_URL,
-});
+// Helper untuk header authorization
+const authHeader = () => ({ headers: { Authorization: `Bearer ${getToken()}` } });
 
-// Inject Authorization header kalau ada token di localStorage
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// AUTH
+export const register = (data) => axios.post(`${API_URL}/register`, data);
+export const login = (data) => axios.post(`${API_URL}/login`, data);
+export const getProfile = () => axios.get(`${API_URL}/me`, authHeader());
+export const updateProfile = (data) => axios.put(`${API_URL}/me`, data, authHeader());
 
-// ========== AUTH ==========
-export const loginUser = (data) => api.post("/login", data);
-export const registerUser = (data) => api.post("/register", data);
-export const getProfile = () => api.get("/me");
-export const updateProfile = (data) => api.put("/me", data);
+// Backward compatibility aliases
+export const registerUser = register;
+export const loginUser = login;
 
-// ========== CHAT ==========
-export const sendMessage = (formData) =>
-  api.post("/chat", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+// CHAT
+export const sendMessage = (formData) => axios.post(`${API_URL}/chat`, formData, authHeader());
+export const sendMessageStream = (prompt, conversationId, mode) => {
+    // Return EventSource for streaming
+    const token = localStorage.getItem('token');
+    const url = new URL(`${API_URL}/chat/stream`);
+    
+    // We can't use EventSource with POST body directly, so we'll use fetch with ReadableStream
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt, conversationId, mode })
+    });
+};
+export const getHistory = () => axios.get(`${API_URL}/history`, authHeader());
+export const deleteChat = (id) => axios.delete(`${API_URL}/conversation/${id}`, authHeader());
 
-export const getHistory = () => api.get("/history");
-export const deleteChat = (id) => api.delete(`/conversation/${id}`);
+// ADMIN
+export const getDashboardStats = () => axios.get(`${API_URL}/admin/stats`, authHeader());
+export const getAdminStats = getDashboardStats; // Alias for backward compatibility
+export const getAllUsers = () => axios.get(`${API_URL}/admin/users`, authHeader());
+export const refillToken = (userId, amount) => axios.put(`${API_URL}/admin/users/${userId}/token`, { amount }, authHeader());
+export const deleteUser = (userId) => axios.delete(`${API_URL}/admin/users/${userId}`, authHeader());
+export const promoteUser = (userId) => axios.post(`${API_URL}/admin/users/${userId}/promote`, {}, authHeader());
+export const demoteUser = (userId) => axios.post(`${API_URL}/admin/users/${userId}/demote`, {}, authHeader());
 
-// ========== ADMIN ==========
-export const getAdminStats = () => api.get("/admin/stats");
-export const getAllUsers = () => api.get("/admin/users");
-export const refillToken = (id, amount) =>
-  api.put(`/admin/users/${id}/token`, { amount });
-export const deleteUser = (id) => api.delete(`/admin/users/${id}`);
+// PASSWORD RESET
+export const forgotPassword = (email) => axios.post(`${API_URL}/forgot-password`, { email });
+export const resetPassword = (token, newPassword) => axios.post(`${API_URL}/reset-password/${token}`, { newPassword });
 
-// ========== PASSWORD RESET ==========
-export const forgotPassword = (email) =>
-  api.post("/forgot-password", { email });
-
-export const resetPassword = (token, newPassword) =>
-  api.post(`/reset-password/${token}`, { newPassword });
-
-export default api;

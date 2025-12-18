@@ -325,7 +325,7 @@ const ChatInterface = () => {
         const formData = new FormData();
         formData.append('prompt', text || ""); formData.append('mode', mode);
         if (currentConvId) formData.append('conversationId', currentConvId);
-        if (file) formData.append('image', file);
+        if (file) formData.append('file', file);
 
         try {
             const res = await sendMessage(formData);

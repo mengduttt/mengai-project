@@ -20,7 +20,15 @@ export const registerUser = register;
 export const loginUser = login;
 
 // CHAT
-export const sendMessage = (formData) => axios.post(`${API_URL}/chat`, formData, authHeader());
+export const sendMessage = (formData) => {
+    const token = localStorage.getItem('token');
+    return axios.post(`${API_URL}/chat`, formData, {
+        headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+        }
+    });
+};
 export const sendMessageStream = (prompt, conversationId, mode) => {
     // Return EventSource for streaming
     const token = localStorage.getItem('token');
